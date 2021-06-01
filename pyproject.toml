@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "talus_data_analysis"
+version = "0.1.0"
+description = ""
+authors = ["Rico Meinl <rmeinl97@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.10"
+pandas = "^1.2.3"
+ipykernel = "^5.5.0"
+streamlit = "^0.79.0"
+watchdog = "^2.0.2"
+plotly = "^4.14.3"
+matplotlib = "^3.3.4"
+scipy = "^1.6.2"
+boto3 = "^1.17.38"
+python-dotenv = "^0.15.0"
+statsmodels = "^0.12.2"
+chart-studio = "^1.1.0"
+psutil = "^5.8.0"
+kaleido = "0.2.1"
+scikit-learn = "^0.24.1"
+WeasyPrint = "^52.4"
+dash-bio = "^0.6.1"
+lxml = "^4.6.3"
+matplotlib-venn = "^0.11.6"
+PyDrive = "^1.3.1"
+openpyxl = "^3.0.7"
+fpdf = "^1.7.2"
+pyarrow = "^4.0.0"
+"hurry.filesize" = "^0.9"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
