@@ -23,6 +23,7 @@ height = 600
 
 ENCYCLOPEDIA_BUCKET = "talus-data-pipeline-encyclopedia-bucket"
 LANDING_BUCKET = "talus-data-pipeline-landing-bucket"
+COLLECTIONS_BUCKET = "protein-collections"
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
@@ -50,8 +51,8 @@ def get_peptide_data(key):
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_nuclear_protein_data(key):
-    # df = read_df_from_s3(bucket=ENCYCLOPEDIA_BUCKET, key=key, inputformat="txt")
-    df = pd.read_csv(key)
+    df = read_df_from_s3(bucket=COLLECTIONS_BUCKET, key=key, inputformat="csv")
+    # df = pd.read_csv(key)
     return df
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
