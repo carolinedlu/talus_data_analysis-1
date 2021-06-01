@@ -26,6 +26,8 @@ RUN apt-get update -y && apt-get install vim tmux -y
 
 ENV POETRY_VERSION="1.1.6"
 
+COPY pyproject.toml .
+
 # Install poetry
 RUN pip install poetry==$POETRY_VERSION
 RUN poetry install
