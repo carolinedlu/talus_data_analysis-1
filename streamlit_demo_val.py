@@ -184,7 +184,7 @@ show_clustergram = st.sidebar.checkbox("Clustergram Plot", key="cluster")
 df_val = get_val_data(key=f"wide/{dataset}/peptide_proteins_results.parquet")
 df_val_processed = get_val_data(key=f"wide/{dataset}/peptide_proteins_normalized.parquet")
 df_nuclear_proteins = get_nuclear_protein_data(
-    key="data/nuclear_proteins.csv"
+    key="nuclear_proteins.csv"
 )
 file_to_condition = df_val[["Run", "Condition"]].drop_duplicates().set_index("Run").to_dict()["Condition"]
 

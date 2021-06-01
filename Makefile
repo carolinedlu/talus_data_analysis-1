@@ -23,6 +23,5 @@ push:
 pull:
 	docker pull 622568582929.dkr.ecr.us-west-2.amazonaws.com/talus_streamlit:latest
 
-
 run:
 	docker container run -p 8501:8501 -d 622568582929.dkr.ecr.us-west-2.amazonaws.com/talus_streamlit:latest
