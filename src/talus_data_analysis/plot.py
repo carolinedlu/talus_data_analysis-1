@@ -687,6 +687,7 @@ def clustergram(
     log_scaling=True,
     hide_row_labels=True,
     title=None,
+    cluster="all",
     xaxis_title=None,
     yaxis_title=None,
     dim=(None, None),
@@ -717,6 +718,7 @@ def clustergram(
         column_labels=column_labels,
         row_labels=list(df.index),
         hidden_labels=hidden_labels,
+        cluster=cluster,
         width=dim[0],
         height=dim[1],
         color_map=[

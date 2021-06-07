@@ -14,6 +14,7 @@ from talus_data_analysis.plot import histogram
 from talus_data_analysis.plot import pca
 from talus_data_analysis.plot import scatter_matrix
 from talus_data_analysis.plot import venn
+from talus_data_analysis.reshape import uniprot_protein_name
 from talus_data_analysis.save import streamlit_report_to_pdf
 
 
@@ -52,8 +53,6 @@ def get_protein_data(key):
 def get_peptide_data(key):
     df = read_df_from_s3(bucket=ENCYCLOPEDIA_BUCKET, key=key, inputformat="txt")
     # df = pd.read_table("data/MM1S/RESULTS-quant.elib.peptides.txt")
-    df = df.set_index(["Peptide"])
-    df = df.drop(["Protein", "numFragments"], axis=1)
     return df
 
 
@@ -204,6 +203,17 @@ df_val = get_val_data(key=f"wide/{dataset}/peptide_proteins_results.parquet")
 df_val_processed = get_val_data(
     key=f"wide/{dataset}/peptide_proteins_normalized.parquet"
 )
+df_proteins = get_protein_data(
+        key=f"wide/{dataset}/RESULTS-quant.elib.proteins.txt"
+    )
+df_peptides = get_peptide_data(
+        key=f"wide/{dataset}/RESULTS-quant.elib.peptides.txt"
+    )
+NUM_PEPTIDES = df_peptides["Peptide"].nunique()
+NUM_PROTEINS = df_peptides["Protein"].apply(uniprot_protein_name).nunique()
+df_peptides = df_peptides.set_index(["Peptide"])
+df_peptides = df_peptides.drop(["Protein", "numFragments"], axis=1)
+
 df_nuclear_proteins = get_nuclear_protein_data(key="nuclear_proteins.csv")
 file_to_condition = (
     df_val[["Run", "Condition"]]
@@ -216,6 +226,9 @@ all_drugs = df_val[df_val["Condition"].notna()]["Condition"].unique().tolist()
 
 figures = []
 descriptions = []
+
+st.write(f"{NUM_PEPTIDES} unique Peptides")
+st.write(f"{NUM_PROTEINS} unique Proteins")
 
 if show_file_sizes:
     st.header(".raw file sizes")
@@ -244,7 +257,7 @@ if show_venn:
     measured_proteins = set(
         df_val["ProteinName"]
         .str.upper()
-        .apply(lambda x: x.split("|")[-1].replace("_HUMAN", ""))
+        .apply(uniprot_protein_name)
     )
     fig_venn = get_venn_diagram(
         sets=[set(custom_proteins), set(measured_proteins)],
@@ -370,10 +383,6 @@ if show_box:
 ######################################
 
 if show_hist:
-    df_proteins = get_protein_data(
-        key=f"wide/{dataset}/RESULTS-quant.elib.proteins.txt"
-    )
-
     st.header("Histogram Plot")
     fig_hist = get_histogram_fig(df=df_proteins, color=primary_color)
     st.write(fig_hist)
@@ -392,9 +401,6 @@ if show_hist:
 ######################################
 
 if show_pca or show_clustergram:
-    df_peptides = get_peptide_data(
-        key=f"wide/{dataset}/RESULTS-quant.elib.peptides.txt"
-    )
     pca_peptides = PCA(n_components=2)
     pca_components = pca_peptides.fit_transform(df_peptides.values.T)
 
