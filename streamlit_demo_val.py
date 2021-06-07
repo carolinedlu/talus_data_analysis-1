@@ -1,13 +1,21 @@
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
+
 from dotenv import load_dotenv
 from sklearn.decomposition import PCA
 
-from talus_data_analysis.plot import *
-from talus_data_analysis.load import read_df_from_s3, get_s3_file_sizes
+from talus_data_analysis.load import get_s3_file_sizes
+from talus_data_analysis.load import read_df_from_s3
+from talus_data_analysis.plot import box
+from talus_data_analysis.plot import clustergram
+from talus_data_analysis.plot import correlation
+from talus_data_analysis.plot import histogram
+from talus_data_analysis.plot import pca
+from talus_data_analysis.plot import scatter_matrix
+from talus_data_analysis.plot import venn
 from talus_data_analysis.save import streamlit_report_to_pdf
+
 
 st.set_page_config(
     page_title="Talus Data Validation",
@@ -55,9 +63,13 @@ def get_nuclear_protein_data(key):
     # df = pd.read_csv(key)
     return df
 
+
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_file_sizes(bucket, dataset):
-    return get_s3_file_sizes(bucket=bucket, keys=[f"narrow/{dataset}", f"wide/{dataset}"], file_type=".raw")
+    return get_s3_file_sizes(
+        bucket=bucket, keys=[f"narrow/{dataset}", f"wide/{dataset}"], file_type=".raw"
+    )
+
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_venn_diagram(sets, labels, title, colors=None):
@@ -161,7 +173,14 @@ st.title(TITLE_TEXT)
 
 st.sidebar.header("Options")
 
-dataset_choices = ["210308_MLLtx", "210308_MM1S", "210511_GryderLab", "210511_DalalLab", "210525_BJ", "210525_Gryder"]
+dataset_choices = [
+    "210308_MLLtx",
+    "210308_MM1S",
+    "210511_GryderLab",
+    "210511_DalalLab",
+    "210525_BJ",
+    "210525_Gryder",
+]
 dataset = st.sidebar.selectbox("Dataset", options=dataset_choices)
 
 primary_color = st.sidebar.color_picker("Primary Color", "#001425")
@@ -182,11 +201,16 @@ show_clustergram = st.sidebar.checkbox("Clustergram Plot", key="cluster")
 ######################################
 
 df_val = get_val_data(key=f"wide/{dataset}/peptide_proteins_results.parquet")
-df_val_processed = get_val_data(key=f"wide/{dataset}/peptide_proteins_normalized.parquet")
-df_nuclear_proteins = get_nuclear_protein_data(
-    key="nuclear_proteins.csv"
+df_val_processed = get_val_data(
+    key=f"wide/{dataset}/peptide_proteins_normalized.parquet"
 )
-file_to_condition = df_val[["Run", "Condition"]].drop_duplicates().set_index("Run").to_dict()["Condition"]
+df_nuclear_proteins = get_nuclear_protein_data(key="nuclear_proteins.csv")
+file_to_condition = (
+    df_val[["Run", "Condition"]]
+    .drop_duplicates()
+    .set_index("Run")
+    .to_dict()["Condition"]
+)
 
 all_drugs = df_val[df_val["Condition"].notna()]["Condition"].unique().tolist()
 
@@ -213,11 +237,15 @@ if show_venn:
             "Select Protein Column", options=list(custom_df.columns), key=str(i)
         )
         custom_proteins.update(list(custom_df[protein_col].tolist()))
-        
+
     if not custom_proteins:
         protein_col = df_nuclear_proteins.columns[-1]
         custom_proteins = df_nuclear_proteins[protein_col].unique()
-    measured_proteins = set(df_val["ProteinName"].str.upper().apply(lambda x: x.split("|")[-1].replace("_HUMAN", "")))
+    measured_proteins = set(
+        df_val["ProteinName"]
+        .str.upper()
+        .apply(lambda x: x.split("|")[-1].replace("_HUMAN", ""))
+    )
     fig_venn = get_venn_diagram(
         sets=[set(custom_proteins), set(measured_proteins)],
         labels=[protein_col, "Measured Proteins"],
@@ -400,17 +428,21 @@ if show_clustergram:
         )
         fig_clust = get_clustergram_fig(
             df=df_peptides.iloc[cluster_start : cluster_start + NUM_PEPTIDES, :],
-            column_labels=[file_to_condition[f] for f in list(df_peptides.columns.values)]
+            column_labels=[
+                file_to_condition[f] for f in list(df_peptides.columns.values)
+            ],
         )
     else:
-        pca_dim = st.sidebar.selectbox("PCA Dimension", [i+1 for i in list(range(2))])
+        pca_dim = st.sidebar.selectbox("PCA Dimension", [i + 1 for i in list(range(2))])
         most_important_features = [
             (-np.abs(comp)).argsort()[:NUM_PEPTIDES]
             for comp in pca_peptides.components_
         ]
         fig_clust = get_clustergram_fig(
             df=df_peptides.iloc[most_important_features[pca_dim - 1], :],
-            column_labels=[file_to_condition[f] for f in list(df_peptides.columns.values)]
+            column_labels=[
+                file_to_condition[f] for f in list(df_peptides.columns.values)
+            ],
         )
     st.write(fig_clust)
     figures.append(fig_clust)
@@ -421,15 +453,17 @@ if show_clustergram:
     )
     descriptions.append(cluster_description)
 
-    
+
 ######################################
 # Export
 ######################################
 
 if st.button("Export to PDF"):
     with st.spinner(text="Loading"):
-        streamlit_report_to_pdf(title=TITLE_TEXT, 
-                                dataset_name=dataset, 
-                                figures=figures, 
-                                descriptions=descriptions, 
-                                write_html=True)
+        streamlit_report_to_pdf(
+            title=TITLE_TEXT,
+            dataset_name=dataset,
+            figures=figures,
+            descriptions=descriptions,
+            write_html=True,
+        )

@@ -1,15 +1,15 @@
-import base64
-
-import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
+
 from dotenv import load_dotenv
-from weasyprint import CSS, HTML
-from weasyprint.formatting_structure.boxes import InlineReplacedBox
-from talus_data_analysis.plot import *
+
 from talus_data_analysis.load import read_df_from_s3
+from talus_data_analysis.plot import comparison
+from talus_data_analysis.plot import heatmap
+from talus_data_analysis.plot import volcano
+from talus_data_analysis.plot import volcano_list_presence_absence
 from talus_data_analysis.save import streamlit_report_to_pdf
+
 
 st.set_page_config(
     page_title="Talus Data Analysis",
@@ -22,8 +22,10 @@ load_dotenv()
 
 ENCYCLOPEDIA_BUCKET = "talus-data-pipeline-encyclopedia-bucket"
 
+
 def clean_protein_name(name):
     return name.split("|")[-1].replace("_HUMAN", "")
+
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_data(key):
@@ -70,7 +72,7 @@ def get_heatmap_fig(df, start_idx, value_column, filter_labels, sort_ascending=N
         log_fold_change_col="log2FC",
         pvalue_col="adj.pvalue",
         start_idx=start_idx,
-        log_fold_change_threshold=(2**2, 2**2),
+        log_fold_change_threshold=(2 ** 2, 2 ** 2),
         pvalue_threshold=(0.05, 0.05),
         sort_ascending=sort_ascending,
         x_label_column_name="Label",
@@ -101,12 +103,19 @@ def get_comparison_fig(df):
 # Data Analysis
 ######################################
 
-TITLE_TEXT = "Data Analysis" 
+TITLE_TEXT = "Data Analysis"
 st.title(TITLE_TEXT)
 
 st.sidebar.header("Options")
 
-dataset_choices = ["210308_MLLtx", "210308_MM1S", "210511_GryderLab", "210511_DalalLab", "210525_BJ", "210525_Gryder"]
+dataset_choices = [
+    "210308_MLLtx",
+    "210308_MM1S",
+    "210511_GryderLab",
+    "210511_DalalLab",
+    "210525_BJ",
+    "210525_Gryder",
+]
 dataset = st.sidebar.selectbox("Dataset", options=dataset_choices)
 
 show_volcano = st.sidebar.checkbox("Volcano Plot", key="vol")
@@ -118,16 +127,26 @@ all_proteins = df["ProteinName"].unique().tolist()
 all_labels = df["Label"].unique().tolist()
 
 st.sidebar.subheader("Filter by Protein")
-uploaded_files = st.sidebar.file_uploader("Choose a file (.csv)", accept_multiple_files=True)
+uploaded_files = st.sidebar.file_uploader(
+    "Choose a file (.csv)", accept_multiple_files=True
+)
 filter_proteins = set()
 for i, uploaded_file in enumerate(uploaded_files):
     filter_df = pd.read_csv(uploaded_file)
     st.sidebar.write(uploaded_file.name)
-    protein_col = st.sidebar.selectbox("Select Protein Column", options=list(filter_df.columns), key=str(i))
-    filter_proteins.update(list(map(clean_protein_name, filter_df[protein_col].tolist())))
+    protein_col = st.sidebar.selectbox(
+        "Select Protein Column", options=list(filter_df.columns), key=str(i)
+    )
+    filter_proteins.update(
+        list(map(clean_protein_name, filter_df[protein_col].tolist()))
+    )
 
-default_filter_proteins = [protein for protein in filter_proteins if protein in set(all_proteins)]
-proteins = st.sidebar.multiselect("Proteins", options=all_proteins, default=default_filter_proteins)
+default_filter_proteins = [
+    protein for protein in filter_proteins if protein in set(all_proteins)
+]
+proteins = st.sidebar.multiselect(
+    "Proteins", options=all_proteins, default=default_filter_proteins
+)
 
 figures = []
 descriptions = []
@@ -135,7 +154,9 @@ descriptions = []
 if show_volcano:
     st.header("Volcano Plot")
     st.sidebar.header("Volcano Plot")
-    labels = st.sidebar.multiselect("Select Drug Interaction", options=df["Label"].unique(), default=None)
+    labels = st.sidebar.multiselect(
+        "Select Drug Interaction", options=df["Label"].unique(), default=None
+    )
     for label in labels:
         fig_v = get_volcano_fig(df=df, filter_labels=proteins, subset_label=label)
         st.write(fig_v)
@@ -208,8 +229,10 @@ if show_comparison:
 
 if st.button("Export to PDF"):
     with st.spinner(text="Loading"):
-        streamlit_report_to_pdf(title=TITLE_TEXT, 
-                                dataset_name=dataset, 
-                                figures=figures, 
-                                descriptions=descriptions, 
-                                write_html=False)
+        streamlit_report_to_pdf(
+            title=TITLE_TEXT,
+            dataset_name=dataset,
+            figures=figures,
+            descriptions=descriptions,
+            write_html=False,
+        )
