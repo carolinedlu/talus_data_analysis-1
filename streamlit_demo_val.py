@@ -1,4 +1,3 @@
-import os
 import base64
 
 import numpy as np
@@ -41,7 +40,6 @@ COLLECTIONS_BUCKET = "protein-collections"
 MAX_ROWS = 1_900_000
 MAX_COLS_SCATTER = 12
 
-st.write(os.environ)
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_val_data(key):
