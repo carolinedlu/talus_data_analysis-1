@@ -29,6 +29,7 @@ openpyxl = "^3.0.7"
 fpdf = "^1.7.2"
 pyarrow = "^4.0.0"
 "hurry.filesize" = "^0.9"
+pyteomics = "^4.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.4"

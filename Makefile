@@ -18,7 +18,7 @@ build:
 tag:
 	docker tag talus_streamlit:latest 622568582929.dkr.ecr.us-west-2.amazonaws.com/talus_streamlit:latest
 
-push:
+push: build tag
 	docker push 622568582929.dkr.ecr.us-west-2.amazonaws.com/talus_streamlit:latest
 
 pull:

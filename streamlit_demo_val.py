@@ -34,6 +34,9 @@ ENCYCLOPEDIA_BUCKET = "talus-data-pipeline-encyclopedia-bucket"
 LANDING_BUCKET = "talus-data-pipeline-landing-bucket"
 COLLECTIONS_BUCKET = "protein-collections"
 
+MAX_ROWS = 1_900_000
+MAX_COLS_SCATTER = 12
+
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_val_data(key):
@@ -91,6 +94,8 @@ def get_correlation_fig(df, replicates, filter_outliers, color):
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
 def get_scatter_matrix_fig(df, filter_outliers, color, opacity=None):
+    samples_to_show = list(df["Run"].values)[:MAX_COLS_SCATTER]
+    df = df[df["Run"].isin(set(samples_to_show))]
     return scatter_matrix(
         df,
         x_label_column_name="Condition",
@@ -115,6 +120,8 @@ def get_box_fig(
     title,
     color,
 ):
+    if len(df) > MAX_ROWS:
+        df = df.sample(n=MAX_ROWS, random_state=42)
     return box(
         df=df,
         x_label_column_name=x_label_column_name,
@@ -179,6 +186,7 @@ dataset_choices = [
     "210511_DalalLab",
     "210525_BJ",
     "210525_Gryder",
+    "210521_THP1"
 ]
 dataset = st.sidebar.selectbox("Dataset", options=dataset_choices)
 
@@ -203,9 +211,12 @@ df_val = get_val_data(key=f"wide/{dataset}/peptide_proteins_results.parquet")
 df_val_processed = get_val_data(
     key=f"wide/{dataset}/peptide_proteins_normalized.parquet"
 )
+
 df_proteins = get_protein_data(
         key=f"wide/{dataset}/RESULTS-quant.elib.proteins.txt"
     )
+df_proteins = df_proteins[["Protein", "NumPeptides"]]
+
 df_peptides = get_peptide_data(
         key=f"wide/{dataset}/RESULTS-quant.elib.peptides.txt"
     )
@@ -221,6 +232,8 @@ file_to_condition = (
     .set_index("Run")
     .to_dict()["Condition"]
 )
+# Remove all the columns that are not present in the validation dataframe
+df_peptides = df_peptides[list(file_to_condition.keys())]
 
 all_drugs = df_val[df_val["Condition"].notna()]["Condition"].unique().tolist()
 
@@ -328,7 +341,6 @@ if show_scatter_matrix:
     )
     descriptions.append(scatter_description)
 
-
 if show_box:
     st.header("Box Plot")
 
@@ -393,7 +405,7 @@ if show_hist:
     descriptions.append(hist_description)
 
     with st.beta_expander("Show Descriptive Stats"):
-        st.dataframe(df_proteins[["Protein", "NumPeptides"]].describe())
+        st.dataframe(df_proteins.describe())
     st.text("")
 
 ######################################
@@ -471,5 +483,5 @@ if st.button("Export to PDF"):
             dataset_name=dataset,
             figures=figures,
             descriptions=descriptions,
-            write_html=True,
+            write_html=False,
         )
