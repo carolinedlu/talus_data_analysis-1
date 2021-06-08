@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 
@@ -7,9 +6,7 @@ from io import BytesIO
 import boto3
 import pandas as pd
 
-from weasyprint import CSS
-from weasyprint import HTML
-from weasyprint.formatting_structure.boxes import InlineReplacedBox
+from fpdf import FPDF
 
 
 def _get_boto_session():
@@ -49,90 +46,55 @@ def write_df_to_s3(
     _write_object_to_s3(bucket=bucket, key=key, buffer=buffer)
 
 
-def streamlit_report_to_pdf(
-    title, dataset_name, figures, descriptions, write_html=True, out_folder="./reports"
-):
-    template = (
-        ""
-        "<figure>"
-        '<img style="width:{width};height:{height}" src="data:image/svg+xml;base64,{image}">'
-        "<br>"
-        "<figcaption>{caption}</figcaption>"
-        "</figure>"
-        ""
-    )
-    images = [
-        base64.b64encode(
-            figure.to_image(
-                format="svg",
-                width=figure.layout["width"],
-                height=figure.layout["height"],
-                scale=0.8,
-                engine="kaleido",
-            )
-        ).decode("utf-8")
-        for figure in figures
-    ]
+class PDF(FPDF):
+    def header(self):
+        self.set_font(family="Helvetica", style="B", size=15)
+        self.set_fill_color(255, 255, 255)
+        w = self.get_string_width(self.title) + 6
+        self.set_x((210 - w) / 2)
+        self.cell(w, 9, self.title, 0, 1, "L", 1)
+        self.ln(10)
 
-    report_html = f"<h1>{title}</h1>"
-    for i, image in enumerate(images):
-        img = template.format(
-            image=image,
-            caption=f"Description:\n{descriptions[i]}",
-            width=figures[i].layout["width"],
-            height=figures[i].layout["height"],
+    def footer(self):
+        self.set_y(-15)
+        self.set_font(family="Helvetica", style="I", size=8)
+        self.set_text_color(128)
+        self.cell(0, 10, "Page " + str(self.page_no()), 0, 0, "C")
+
+    def chapter_title(self, num, label):
+        self.set_font(family="Helvetica", style="B", size=12)
+        self.set_fill_color(200, 220, 255)
+        self.multi_cell(w=0, h=6, txt="%d: %s" % (num, label), border=0, align="L")
+        self.ln(4)
+
+    def chapter_body(self, name, description, width=210, height=297):
+        self.set_font(family="Helvetica", style="", size=12)
+        self.multi_cell(w=0, h=5, txt=description)
+        self.image(name, w=width)
+        self.ln()
+
+    def print_chapter(self, num, title, name, description, width=210, height=None):
+        self.add_page()
+        self.chapter_title(num, title)
+        self.chapter_body(
+            name=name, description=description, width=int(width * 0.8), height=height
         )
-        report_html += img
 
-    if write_html:
-        with open(
-            f"{out_folder}/{dataset_name}_{'_'.join(title.lower().split(' '))}_report.html",
-            "w",
-        ) as f:
-            f.write(report_html)
 
-    htmldoc = HTML(string=report_html, base_url="")
-    css = CSS(
-        string="""
-        body {
-            font-family: "IBM Plex Sans", "Montserrat", "arial", "sans-serif";
-            font-size: 14px;
-            color: rgb(46,63,92)
-        }
-        @media print {
-        a::after {
-            content: " (" attr(href) ") ";
-        }
-        pre {
-            white-space: pre-wrap;
-        }
-        @page {
-            margin: 20px 20px 50px 20px;
-            size: A4;
-            @bottom-right {
-                content: counter(page);
-            }
-            @bottom-center {
-                content: url("file:///Users/ricomeinl/Desktop/talus/talus_data_analysis/img/talus_logo.png");
-            }
-        }"""
-    )
-    pdf_doc = htmldoc.render(stylesheets=[css])
+def streamlit_report_to_pdf(out_filename, title, figures, titles, descriptions):
+    figurepaths = []
+    for i, figure in enumerate(figures):
+        figurepath = f"/tmp/fig{i+1}.png"
+        figure.write_image(figurepath)
+        figurepaths.append(figurepath)
 
-    for page in pdf_doc.pages:
-        for children in page._page_box.descendants():
-            if isinstance(children, InlineReplacedBox):
-                needed_width = (
-                    children.width
-                    + page._page_box.margin_left
-                    + page._page_box.margin_right
-                )
+    pdf = PDF()
+    pdf.set_title(title)
+    for i, path in enumerate(figurepaths):
+        pdf.print_chapter(
+            num=i + 1, title=titles[i], name=path, description=descriptions[i]
+        )
 
-                # Override width only if the table doesn't fit
-                if page.width < needed_width:
-                    page._page_box.width = needed_width
-                    page.width = needed_width
+    pdf_output = pdf.output(out_filename, dest="S")
 
-    pdf_doc.write_pdf(
-        f"{out_folder}/{dataset_name}_{'_'.join(title.lower().split(' '))}_report.pdf"
-    )
+    return pdf_output

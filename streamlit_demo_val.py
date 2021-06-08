@@ -1,3 +1,5 @@
+import base64
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -5,15 +7,16 @@ import streamlit as st
 from dotenv import load_dotenv
 from sklearn.decomposition import PCA
 
-from talus_data_analysis.load import get_s3_file_sizes
-from talus_data_analysis.load import read_df_from_s3
-from talus_data_analysis.plot import box
-from talus_data_analysis.plot import clustergram
-from talus_data_analysis.plot import correlation
-from talus_data_analysis.plot import histogram
-from talus_data_analysis.plot import pca
-from talus_data_analysis.plot import scatter_matrix
-from talus_data_analysis.plot import venn
+from talus_data_analysis.load import get_s3_file_sizes, read_df_from_s3
+from talus_data_analysis.plot import (
+    box,
+    clustergram,
+    correlation,
+    histogram,
+    pca,
+    scatter_matrix,
+    venn,
+)
 from talus_data_analysis.reshape import uniprot_protein_name
 from talus_data_analysis.save import streamlit_report_to_pdf
 
@@ -74,7 +77,7 @@ def get_file_sizes(bucket, dataset):
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_venn_diagram(sets, labels, title, colors=None):
+def get_venn_diagram(sets, labels, title=None, colors=None):
     return venn(sets=sets, labels=labels, title=title, colors=colors, dim=(800, 500))
 
 
@@ -93,7 +96,7 @@ def get_correlation_fig(df, replicates, filter_outliers, color):
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_scatter_matrix_fig(df, filter_outliers, color, opacity=None):
+def get_scatter_matrix_fig(df, filter_outliers, color, title=None, opacity=None):
     samples_to_show = list(df["Run"].values)[:MAX_COLS_SCATTER]
     df = df[df["Run"].isin(set(samples_to_show))]
     return scatter_matrix(
@@ -103,7 +106,7 @@ def get_scatter_matrix_fig(df, filter_outliers, color, opacity=None):
         value_column_name="Intensity",
         filter_outliers=filter_outliers,
         log_scaling=True,
-        title="Scatter Matrix Plot of Peptide Intensities for each Sample",
+        title=title,
         color=color,
         opacity=opacity,
         dim=(900, 900),
@@ -117,8 +120,8 @@ def get_box_fig(
     y_label_column_name,
     log_scaling,
     filter_outliers,
-    title,
     color,
+    title=None,
 ):
     if len(df) > MAX_ROWS:
         df = df.sample(n=MAX_ROWS, random_state=42)
@@ -138,13 +141,13 @@ def get_box_fig(
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_histogram_fig(df, color):
+def get_histogram_fig(df, color, title=None):
     return histogram(
         df,
         x_label_column_name="NumPeptides",
         xaxis_title="# of Peptides",
         yaxis_title="Number of Proteins",
-        title="Histogram Plot mapping the Distribution of the Number of Peptides detected for each Protein",
+        title=title,
         color=color,
         value_cutoff=30,
         dim=(900, 750),
@@ -152,12 +155,12 @@ def get_histogram_fig(df, color):
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_pca_fig(pca_components, labels, color, explained_variance_ratio):
+def get_pca_fig(pca_components, labels, color, explained_variance_ratio, title=None):
     return pca(
         pca_components=pca_components,
         labels=labels,
         dim=(750, 750),
-        title="PCA Plot mapping the Principal Components of the Peptide Intensities for each Sample",
+        title=title,
         xaxis_title=f"Principal Component 1 ({round(explained_variance_ratio[0]*100, 2)}%)",
         yaxis_title=f"Principal Component 2 ({round(explained_variance_ratio[1]*100, 2)}%)",
         color=color,
@@ -165,11 +168,11 @@ def get_pca_fig(pca_components, labels, color, explained_variance_ratio):
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_clustergram_fig(df, column_labels):
+def get_clustergram_fig(df, column_labels, title=None):
     return clustergram(
         df=df,
         column_labels=column_labels,
-        title="Clustergram Plot mapping the log10 Peptide Intensities for each Sample",
+        title=title,
         dim=(750, 1000),
     )
 
@@ -186,7 +189,7 @@ dataset_choices = [
     "210511_DalalLab",
     "210525_BJ",
     "210525_Gryder",
-    "210521_THP1"
+    "210521_THP1",
 ]
 dataset = st.sidebar.selectbox("Dataset", options=dataset_choices)
 
@@ -195,7 +198,7 @@ secondary_color = st.sidebar.color_picker("Secondary Color", "#308AAD")
 
 show_file_sizes = st.sidebar.checkbox("File Sizes", key="file_sizes")
 show_venn = st.sidebar.checkbox("Venn Diagram", key="venn")
-show_correlation = st.sidebar.checkbox("Correlation Plot", key="corr")
+# show_correlation = st.sidebar.checkbox("Correlation Plot", key="corr")
 show_scatter_matrix = st.sidebar.checkbox("Scatter Matrix Plot", key="sm")
 show_box = st.sidebar.checkbox("Box Plot", key="box")
 show_hist = st.sidebar.checkbox("Histogram Plot", key="hist")
@@ -212,14 +215,10 @@ df_val_processed = get_val_data(
     key=f"wide/{dataset}/peptide_proteins_normalized.parquet"
 )
 
-df_proteins = get_protein_data(
-        key=f"wide/{dataset}/RESULTS-quant.elib.proteins.txt"
-    )
+df_proteins = get_protein_data(key=f"wide/{dataset}/RESULTS-quant.elib.proteins.txt")
 df_proteins = df_proteins[["Protein", "NumPeptides"]]
 
-df_peptides = get_peptide_data(
-        key=f"wide/{dataset}/RESULTS-quant.elib.peptides.txt"
-    )
+df_peptides = get_peptide_data(key=f"wide/{dataset}/RESULTS-quant.elib.peptides.txt")
 NUM_PEPTIDES = df_peptides["Peptide"].nunique()
 NUM_PROTEINS = df_peptides["Protein"].apply(uniprot_protein_name).nunique()
 df_peptides = df_peptides.set_index(["Peptide"])
@@ -239,6 +238,7 @@ all_drugs = df_val[df_val["Condition"].notna()]["Condition"].unique().tolist()
 
 figures = []
 descriptions = []
+titles = []
 
 st.write(f"{NUM_PEPTIDES} unique Peptides")
 st.write(f"{NUM_PROTEINS} unique Proteins")
@@ -249,7 +249,9 @@ if show_file_sizes:
     st.dataframe(file_sizes_df)
 
 if show_venn:
-    st.header("Venn Diagram")
+    venn_title = "A Venn Diagram showing the overlap between a list of nuclear proteins and the measured proteins"
+    st.header(venn_title)
+    titles.append(venn_title)
     st.sidebar.header("Venn Diagram")
     st.sidebar.subheader("Custom Protein List")
     uploaded_files = st.sidebar.file_uploader(
@@ -268,15 +270,12 @@ if show_venn:
         protein_col = df_nuclear_proteins.columns[-1]
         custom_proteins = df_nuclear_proteins[protein_col].unique()
     measured_proteins = set(
-        df_val["ProteinName"]
-        .str.upper()
-        .apply(uniprot_protein_name)
+        df_val["ProteinName"].str.upper().apply(uniprot_protein_name)
     )
     fig_venn = get_venn_diagram(
         sets=[set(custom_proteins), set(measured_proteins)],
         labels=[protein_col, "Measured Proteins"],
         colors=[primary_color, secondary_color],
-        title="A Venn Diagram showing the overlap between a list of nuclear proteins and the measured proteins",
     )
     st.write(fig_venn)
     figures.append(fig_venn)
@@ -285,41 +284,43 @@ if show_venn:
     venn_description = st.text_area("Description", key="venn", value=venn_placeholder)
     descriptions.append(venn_description)
 
-if show_correlation:
-    st.header("Correlation Plot")
-    st.sidebar.header("Correlation Plot")
-    drug = st.sidebar.selectbox("Filter by Drug", options=all_drugs)
-    corr_filter_outliers = st.sidebar.checkbox("Filter outliers", key="1")
+# if show_correlation:
+#     st.header("Correlation Plot")
+#     st.sidebar.header("Correlation Plot")
+#     drug = st.sidebar.selectbox("Filter by Drug", options=all_drugs)
+#     corr_filter_outliers = st.sidebar.checkbox("Filter outliers", key="1")
 
-    if drug:
-        st.write(drug)
-        replicates = (
-            df_val[df_val["Condition"] == drug]["BioReplicate"].unique().tolist()
-        )
+#     if drug:
+#         st.write(drug)
+#         replicates = (
+#             df_val[df_val["Condition"] == drug]["BioReplicate"].unique().tolist()
+#         )
 
-        if len(replicates) < 2:
-            st.write(
-                f"Not enough replicates: {len(replicates)}. Needs at least 2 to compare."
-            )
-        else:
-            fig_corr = get_correlation_fig(
-                df=df_val,
-                replicates=replicates,
-                filter_outliers=corr_filter_outliers,
-                color=primary_color,
-            )
-            st.write(fig_corr)
-            figures.append(fig_corr)
+#         if len(replicates) < 2:
+#             st.write(
+#                 f"Not enough replicates: {len(replicates)}. Needs at least 2 to compare."
+#             )
+#         else:
+#             fig_corr = get_correlation_fig(
+#                 df=df_val,
+#                 replicates=replicates,
+#                 filter_outliers=corr_filter_outliers,
+#                 color=primary_color,
+#             )
+#             st.write(fig_corr)
+#             figures.append(fig_corr)
 
-        corr_description = st.text_area(
-            "Description",
-            key="corr",
-            value="A correlation plot showing all intensity values for two given samples. It can be used to compare the intensity values for the same samples during different runs. Optionally outliers can be filtered out.",
-        )
-        descriptions.append(corr_description)
+#         corr_description = st.text_area(
+#             "Description",
+#             key="corr",
+#             value="A correlation plot showing all intensity values for two given samples. It can be used to compare the intensity values for the same samples during different runs. Optionally outliers can be filtered out.",
+#         )
+#         descriptions.append(corr_description)
 
 if show_scatter_matrix:
-    st.header("Scatter Matrix Plot")
+    scatter_title = "Scatter Matrix Plot of Peptide Intensities for each Sample"
+    st.header(scatter_title)
+    titles.append(scatter_title)
     st.sidebar.header("Scatter Matrix Plot")
     sm_filter_outliers = st.sidebar.checkbox("Filter outliers", key="2")
     sm_opacity = st.sidebar.slider(
@@ -342,13 +343,16 @@ if show_scatter_matrix:
     descriptions.append(scatter_description)
 
 if show_box:
-    st.header("Box Plot")
+    st.header("Box Plot of Raw/Normalized Peptide Intensities for each Sample")
 
     with st.spinner(text="Loading"):
         col1, col2 = st.beta_columns(2)
 
         # Raw
         st.sidebar.header("Box Plot (raw)")
+        box_title = "Box Plot of Raw Peptide Intensities for each Sample"
+        col1.subheader(box_title)
+        titles.append(box_title)
         box_filter_outliers = st.sidebar.checkbox("Filter outliers", key="3")
         fig_box = get_box_fig(
             df=df_val,
@@ -356,7 +360,6 @@ if show_box:
             y_label_column_name="Intensity",
             log_scaling=True,
             filter_outliers=box_filter_outliers,
-            title="Box Plot of Raw Peptides Intensities for each Sample",
             color=primary_color,
         )
         col1.write(fig_box)
@@ -370,6 +373,9 @@ if show_box:
 
         # Normalized
         st.sidebar.header("Box Plot (normalized)")
+        box_norm_title = "Box Plot of Normalized Peptide Intensities for each Sample"
+        col2.subheader(box_norm_title)
+        titles.append(box_norm_title)
         box_norm_filter_outliers = st.sidebar.checkbox("Filter outliers", key="4")
 
         fig_box_norm = get_box_fig(
@@ -378,7 +384,6 @@ if show_box:
             y_label_column_name="ABUNDANCE",
             log_scaling=False,
             filter_outliers=box_norm_filter_outliers,
-            title="Box Plot of Normalized Peptides Intensities for each Sample",
             color=primary_color,
         )
         col2.write(fig_box_norm)
@@ -395,7 +400,9 @@ if show_box:
 ######################################
 
 if show_hist:
-    st.header("Histogram Plot")
+    hist_title = "Histogram Plot mapping the Distribution of the Number of Peptides detected for each Protein"
+    st.header(hist_title)
+    titles.append(hist_title)
     fig_hist = get_histogram_fig(df=df_proteins, color=primary_color)
     st.write(fig_hist)
     figures.append(fig_hist)
@@ -417,7 +424,9 @@ if show_pca or show_clustergram:
     pca_components = pca_peptides.fit_transform(df_peptides.values.T)
 
 if show_pca:
-    st.header("PCA Plot")
+    pca_title = "PCA Plot mapping the Principal Components of the Peptide Intensities for each Sample"
+    st.header(pca_title)
+    titles.append(pca_title)
     fig_pca = get_pca_fig(
         pca_components=pca_components,
         labels=[file_to_condition[f] for f in df_peptides.columns],
@@ -432,7 +441,11 @@ if show_pca:
     descriptions.append(pca_description)
 
 if show_clustergram:
-    st.header("Clustergram Plot")
+    cluster_title = (
+        "Clustergram Plot mapping the log10 Peptide Intensities for each Sample"
+    )
+    st.header(cluster_title)
+    titles.append(cluster_title)
     NUM_PEPTIDES = 150
     st.sidebar.header("Clustergram Plot")
     cluster_selection_method = st.sidebar.selectbox(
@@ -476,12 +489,24 @@ if show_clustergram:
 # Export
 ######################################
 
+
+def create_download_link(val, filename):
+    b64 = base64.b64encode(val)
+    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download file</a>'
+
+
 if st.button("Export to PDF"):
+
     with st.spinner(text="Loading"):
-        streamlit_report_to_pdf(
+        out_filename = f"{dataset}_{'_'.join(TITLE_TEXT.lower().split(' '))}_report.pdf"
+
+        output_pdf = streamlit_report_to_pdf(
+            out_filename=out_filename,
             title=TITLE_TEXT,
-            dataset_name=dataset,
             figures=figures,
+            titles=titles,
             descriptions=descriptions,
-            write_html=False,
         )
+
+        html = create_download_link(output_pdf.encode("latin-1"), out_filename)
+        st.markdown(html, unsafe_allow_html=True)

@@ -195,3 +195,5 @@ docs/
 
 # translation temp files
 po/*~
+
+poetry.lock

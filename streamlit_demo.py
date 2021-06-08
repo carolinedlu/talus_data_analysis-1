@@ -4,10 +4,12 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from talus_data_analysis.load import read_df_from_s3
-from talus_data_analysis.plot import comparison
-from talus_data_analysis.plot import heatmap
-from talus_data_analysis.plot import volcano
-from talus_data_analysis.plot import volcano_list_presence_absence
+from talus_data_analysis.plot import (
+    comparison,
+    heatmap,
+    volcano,
+    volcano_list_presence_absence,
+)
 from talus_data_analysis.save import streamlit_report_to_pdf
 
 

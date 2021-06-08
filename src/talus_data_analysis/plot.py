@@ -5,8 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from matplotlib_venn import venn2
-from matplotlib_venn import venn3
+from matplotlib_venn import venn2, venn3
 from scipy.special import binom
 from scipy.stats import t
 
