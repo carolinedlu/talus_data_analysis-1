@@ -26,11 +26,14 @@ RUN apt-get update -y && apt-get install vim tmux -y
 
 ENV POETRY_VERSION="1.1.6"
 
-# copying all files over
-COPY . .
+COPY pyproject.toml .
 
 # Install poetry
 RUN pip install poetry==$POETRY_VERSION
+
+# copying all files over
+COPY . .
+
 RUN poetry install
 
 CMD poetry run streamlit run streamlit_demo_val.py
