@@ -1,5 +1,3 @@
-import base64
-
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -18,7 +16,7 @@ from talus_data_analysis.plot import (
     venn,
 )
 from talus_data_analysis.reshape import uniprot_protein_name
-from talus_data_analysis.save import streamlit_report_to_pdf
+from talus_data_analysis.save import create_download_link, streamlit_report_to_pdf
 
 
 st.set_page_config(
@@ -489,14 +487,7 @@ if show_clustergram:
 # Export
 ######################################
 
-
-def create_download_link(val, filename):
-    b64 = base64.b64encode(val)
-    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download file</a>'
-
-
 if st.button("Export to PDF"):
-
     with st.spinner(text="Loading"):
         out_filename = f"{dataset}_{'_'.join(TITLE_TEXT.lower().split(' '))}_report.pdf"
 

@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 
@@ -79,6 +80,11 @@ class PDF(FPDF):
         self.chapter_body(
             name=name, description=description, width=int(width * 0.8), height=height
         )
+
+
+def create_download_link(val, filename):
+    b64 = base64.b64encode(val)
+    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download file</a>'
 
 
 def streamlit_report_to_pdf(out_filename, title, figures, titles, descriptions):

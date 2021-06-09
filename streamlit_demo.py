@@ -10,7 +10,8 @@ from talus_data_analysis.plot import (
     volcano,
     volcano_list_presence_absence,
 )
-from talus_data_analysis.save import streamlit_report_to_pdf
+from talus_data_analysis.reshape import uniprot_protein_name
+from talus_data_analysis.save import create_download_link, streamlit_report_to_pdf
 
 
 st.set_page_config(
@@ -23,10 +24,6 @@ st.set_page_config(
 load_dotenv()
 
 ENCYCLOPEDIA_BUCKET = "talus-data-pipeline-encyclopedia-bucket"
-
-
-def clean_protein_name(name):
-    return name.split("|")[-1].replace("_HUMAN", "")
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
@@ -46,12 +43,12 @@ def get_data(key):
             "issue",
         ]
     ]
-    df["ProteinName"] = df["Protein"].apply(clean_protein_name)
+    df["ProteinName"] = df["Protein"].apply(uniprot_protein_name)
     return df
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_volcano_fig(df, filter_labels, subset_label):
+def get_volcano_fig(df, filter_labels, subset_label, title=None):
     filtered_df = df[df["Label"] == subset_label]
     return volcano(
         df=filtered_df,
@@ -61,14 +58,16 @@ def get_volcano_fig(df, filter_labels, subset_label):
         log_fold_change_threshold=(2 ** 2, 2 ** 2),
         label_column_name="ProteinName",
         filter_labels=filter_labels,
-        title="Volcano Plot mapping the log2 fold change and the log10 adjusted p-value for each Protein",
+        title=title,
         dim=(900, 750),
         sign_line=True,
     )
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_heatmap_fig(df, start_idx, value_column, filter_labels, sort_ascending=None):
+def get_heatmap_fig(
+    df, start_idx, value_column, filter_labels, title=None, sort_ascending=None
+):
     return heatmap(
         df=df,
         log_fold_change_col="log2FC",
@@ -81,20 +80,20 @@ def get_heatmap_fig(df, start_idx, value_column, filter_labels, sort_ascending=N
         y_label_column_name="ProteinName",
         value_column_name=value_column,
         filter_labels=filter_labels,
-        title="Heatmap showing the log2 fold change for a selection of Proteins for each Sample Comparison",
+        title=title,
         dim=(750, 1000),
     )
 
 
 @st.cache(allow_output_mutation=True, hash_funcs={pd.DataFrame: lambda _: None})
-def get_comparison_fig(df):
+def get_comparison_fig(df, title=None):
     return comparison(
         df=df,
         log_fold_change_col="log2FC",
         pvalue_col="adj.pvalue",
         pvalue_threshold=0.05,
         label_column_name="Label",
-        title="Comparison plot mapping the log2 fold change for a protein across all Sample Comparisons",
+        title=title,
         xaxis_title="Comparison",
         yaxis_title="log2 fold change",
         dim=(750, 750),
@@ -140,7 +139,7 @@ for i, uploaded_file in enumerate(uploaded_files):
         "Select Protein Column", options=list(filter_df.columns), key=str(i)
     )
     filter_proteins.update(
-        list(map(clean_protein_name, filter_df[protein_col].tolist()))
+        list(map(uniprot_protein_name, filter_df[protein_col].tolist()))
     )
 
 default_filter_proteins = [
@@ -152,15 +151,24 @@ proteins = st.sidebar.multiselect(
 
 figures = []
 descriptions = []
+titles = []
 
 if show_volcano:
-    st.header("Volcano Plot")
     st.sidebar.header("Volcano Plot")
     labels = st.sidebar.multiselect(
         "Select Drug Interaction", options=df["Label"].unique(), default=None
     )
+    show_protein_labels = st.sidebar.checkbox(
+        "Show Protein Labels", key="protein_labels"
+    )
     for label in labels:
-        fig_v = get_volcano_fig(df=df, filter_labels=proteins, subset_label=label)
+        volcano_title = "Volcano Plot mapping the log2 fold change and the log10 adjusted p-value for each Protein"
+        st.header(volcano_title)
+        titles.append(volcano_title)
+        filter_labels = []
+        if show_protein_labels:
+            filter_labels = proteins
+        fig_v = get_volcano_fig(df=df, filter_labels=filter_labels, subset_label=label)
         st.write(fig_v)
         figures.append(fig_v)
 
@@ -180,7 +188,9 @@ if show_volcano:
 
 if show_heatmap:
     NUM_PROTEINS = 50
-    st.header("Heatmap Plot")
+    heatmap_title = "Heatmap showing the log2 fold change for a selection of Proteins for each Sample Comparison"
+    st.header(heatmap_title)
+    titles.append(heatmap_title)
     st.sidebar.header("Heatmap Plot")
     start = st.sidebar.slider(
         "Select start of range (50 proteins)",
@@ -210,7 +220,9 @@ if show_heatmap:
     descriptions.append(heatmap_description)
 
 if show_comparison:
-    st.header("Comparison Plot")
+    comp_title = "Comparison plot mapping the log2 fold change for a protein across all Sample Comparisons"
+    st.header(comp_title)
+    titles.append(comp_title)
     if proteins:
         protein_df = df[df["ProteinName"] == proteins[0]]
         fig_cmp = get_comparison_fig(df=protein_df)
@@ -231,10 +243,15 @@ if show_comparison:
 
 if st.button("Export to PDF"):
     with st.spinner(text="Loading"):
-        streamlit_report_to_pdf(
+        out_filename = f"{dataset}_{'_'.join(TITLE_TEXT.lower().split(' '))}_report.pdf"
+
+        output_pdf = streamlit_report_to_pdf(
+            out_filename=out_filename,
             title=TITLE_TEXT,
-            dataset_name=dataset,
             figures=figures,
+            titles=titles,
             descriptions=descriptions,
-            write_html=False,
         )
+
+        html = create_download_link(output_pdf.encode("latin-1"), out_filename)
+        st.markdown(html, unsafe_allow_html=True)
